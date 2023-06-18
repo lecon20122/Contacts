@@ -1,5 +1,7 @@
-﻿using Contacts.Data;
+﻿using Contacts.Areas.Identity.Data;
+using Contacts.Data;
 using Contacts.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -7,33 +9,37 @@ using System.Security.Claims;
 
 namespace Contacts.Controllers
 {
+    [Authorize]
     public class ContactsController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly ApplicationUserManager _userManager;
 
-        public ContactsController(ApplicationDbContext context)
+        public ContactsController(ApplicationDbContext context, ApplicationUserManager userManager)
         {
             _context = context;
+            _userManager = userManager;
         }
 
         // GET: Contacts
         public async Task<IActionResult> Index()
         {
-            var applicationDbContext = _context.Contact.Include(c => c.User);
+            var userId = _userManager.UserId(User);
+            var applicationDbContext = _context.Contact.Where(c => c.UserId == userId)
+                    .Include(c => c.User);
             return View(await applicationDbContext.ToListAsync());
         }
 
         // GET: Contacts/Details/5
         public async Task<IActionResult> Details(int? id)
         {
-            if (id == null || _context.Contact == null)
-            {
-                return NotFound();
-            }
+            if (id == null || _context.Contact == null) return NotFound();
 
             var contact = await _context.Contact
+                .Where(c => c.UserId == _userManager.UserId(User))
                 .Include(c => c.User)
                 .FirstOrDefaultAsync(m => m.Id == id);
+
             if (contact == null)
             {
                 return NotFound();
