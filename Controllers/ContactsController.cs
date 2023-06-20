@@ -1,145 +1,95 @@
 ﻿using Contacts.Areas.Identity.Data;
-using Contacts.Data;
+using Contacts.Business;
 using Contacts.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
 
 namespace Contacts.Controllers
 {
     [Authorize]
     public class ContactsController : Controller
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IContactRepository _contactRepository;
         private readonly ApplicationUserManager _userManager;
 
-        public ContactsController(ApplicationDbContext context, ApplicationUserManager userManager)
+        public ContactsController(IContactRepository contactRepository, ApplicationUserManager userManager)
         {
-            _context = context;
+            _contactRepository = contactRepository;
             _userManager = userManager;
         }
 
         // GET: Contacts
-        public async Task<IActionResult> Index()
+        public IActionResult Index()
         {
-            var userId = _userManager.UserId(User);
-            var applicationDbContext = _context.Contact.Where(c => c.UserId == userId)
-                    .Include(c => c.User);
-            return View(await applicationDbContext.ToListAsync());
+            var contacts = _contactRepository.GetContacts();
+            return View(contacts);
         }
 
         // GET: Contacts/Details/5
-        public async Task<IActionResult> Details(int? id)
+        public IActionResult Details(int id)
         {
-            if (id == null || _context.Contact == null) return NotFound();
-
-            var contact = await _context.Contact
-                .Where(c => c.UserId == _userManager.UserId(User))
-                .Include(c => c.User)
-                .FirstOrDefaultAsync(m => m.Id == id);
-
-            if (contact == null)
-            {
-                return NotFound();
-            }
-
+            Contact? contact = _contactRepository.GetContact(id);
             return View(contact);
         }
 
         // GET: Contacts/Create
         public IActionResult Create()
         {
-            ViewData["UserId"] = User.Claims.Where(c => c.Type == ClaimTypes.NameIdentifier).First()?.Value;
+            ViewData["UserId"] = _userManager.UserId(User);
             return View();
         }
 
-        // POST: Contacts/Create
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
+
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,Name,Email,Phone,Description,UserId")] Contact contact)
+        public IActionResult Create([Bind("Id,Name,Email,Phone,Description,UserId")] Contact contact)
         {
             if (ModelState.IsValid)
             {
-                _context.Add(contact);
-                await _context.SaveChangesAsync();
+                _contactRepository.AddContact(contact);
                 return RedirectToAction(nameof(Index));
             }
-            ViewData["UserId"] = User.Claims.Where(c => c.Type == ClaimTypes.NameIdentifier).First()?.Value;
+            ViewData["UserId"] = _userManager.UserId(User);
             return View(contact);
         }
 
         // GET: Contacts/Edit/5
-        public async Task<IActionResult> Edit(int? id)
+        public IActionResult Edit(int id)
         {
-            if (id == null || _context.Contact == null)
-            {
-                return NotFound();
-            }
+            var contact = _contactRepository.GetContact(id);
 
-            var contact = await _context.Contact.FindAsync(id);
-            if (contact == null)
-            {
-                return NotFound();
-            }
-            ViewData["UserId"] = new SelectList(_context.Users, "Id", "Id", contact.UserId);
+            ViewData["UserId"] = _userManager.UserId(User);
             return View(contact);
         }
 
-        // POST: Contacts/Edit/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
+
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,Name,Email,Phone,Description,UserId")] Contact contact)
+        public IActionResult Edit(int id, [Bind("Id,Name,Email,Phone,Description,UserId")] Contact contact)
         {
-            if (id != contact.Id)
-            {
-                return NotFound();
-            }
-
             if (ModelState.IsValid)
             {
                 try
                 {
-                    _context.Update(contact);
-                    await _context.SaveChangesAsync();
+                    _contactRepository.EditContact(id, contact);
                 }
                 catch (DbUpdateConcurrencyException)
                 {
-                    if (!ContactExists(contact.Id))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
+                    return BadRequest("Somehting went wrong, try again later");
                 }
                 return RedirectToAction(nameof(Index));
             }
-            ViewData["UserId"] = new SelectList(_context.Users, "Id", "Id", contact.UserId);
+            ViewData["UserId"] = _userManager.UserId(User);
             return View(contact);
         }
 
         // GET: Contacts/Delete/5
-        public async Task<IActionResult> Delete(int? id)
+        public IActionResult Delete(int id)
         {
-            if (id == null || _context.Contact == null)
-            {
-                return NotFound();
-            }
+            var contact = _contactRepository.GetContact(id);
 
-            var contact = await _context.Contact
-                .Include(c => c.User)
-                .FirstOrDefaultAsync(m => m.Id == id);
-            if (contact == null)
-            {
-                return NotFound();
-            }
+            if (contact is null) return NotFound();
 
             return View(contact);
         }
@@ -147,25 +97,10 @@ namespace Contacts.Controllers
         // POST: Contacts/Delete/5
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteConfirmed(int id)
+        public IActionResult DeleteConfirmed(int id)
         {
-            if (_context.Contact == null)
-            {
-                return Problem("Entity set 'ApplicationDbContext.Contact'  is null.");
-            }
-            var contact = await _context.Contact.FindAsync(id);
-            if (contact != null)
-            {
-                _context.Contact.Remove(contact);
-            }
-
-            await _context.SaveChangesAsync();
+            _contactRepository.DeleteContact(id);
             return RedirectToAction(nameof(Index));
-        }
-
-        private bool ContactExists(int id)
-        {
-            return (_context.Contact?.Any(e => e.Id == id)).GetValueOrDefault();
         }
     }
 }
