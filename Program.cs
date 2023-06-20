@@ -1,4 +1,5 @@
 using Contacts.Areas.Identity.Data;
+using Contacts.Business;
 using Contacts.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,6 +14,8 @@ builder.Services.AddDefaultIdentity<ApplicationUser>()
     .AddUserManager<ApplicationUserManager>();
 
 // Add services to the container.
+builder.Services.AddScoped<IContactRepository, ContactRepository>();
+
 builder.Services.AddControllersWithViews();
 builder.Services.AddRazorPages();
 
